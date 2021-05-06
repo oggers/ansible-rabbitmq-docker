@@ -1,0 +1,16 @@
+- name: Add rabbitmq user
+  command: "docker exec rabbitmq rabbitmqctl add_user {{ item.name }} {{ item.passwd }}"
+  when: "current_rabbitmq_users.stdout.find('\n' + item.name + '\t') == -1"
+
+- name: List rabbitmq user permisssions
+  command: "docker exec rabbitmq rabbitmqctl list_user_permissions {{ item.name }}"
+  register: rabbitmq_user_permissions
+  check_mode: no  # run even if in check mode
+  changed_when: false
+
+- name: Set permissions for user apanymantel
+  command: "docker exec rabbitmq rabbitmqctl set_permissions -p {{ perm.vhost }} {{ item.name }} \"{{ perm.conf }}\" \"{{ perm.write }}\" \"{{ perm.read }}\""
+  when: "rabbitmq_user_permissions.stdout_lines.count(perm.vhost + '\t' + perm.conf + '\t' + perm.write + '\t' + perm.read) == 0"
+  loop: "{{ item.perms }}"
+  loop_control:
+    loop_var: perm

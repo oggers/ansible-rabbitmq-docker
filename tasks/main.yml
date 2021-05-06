@@ -1,0 +1,71 @@
+---
+# file: tasks/rabbitmq.yml
+
+- include: install.yml
+
+- name: Create network
+  docker_network:
+    name: "{{ docker_network_name }}"
+    ipam_config:
+      - gateway: "{{ docker_network_gateway }}"
+        subnet: "{{ docker_network_subnet }}"
+
+- name: Create docker container rabbitmq
+  # https://hub.docker.com/_/rabbitmq/
+  docker_container:
+    name: "{{ docker_rabbitmq_container_name }}"
+    hostname: rabbitmq
+    image: rabbitmq:3-management-alpine
+    state: started
+    restart_policy: "{{ docker_rabbitmq_restart_policy }}"
+    networks:
+    - name: "{{ docker_network_name }}"
+    published_ports:
+    - "{{ docker_rabbitmq_port }}:5672"
+    - "{{ docker_rabbitmq_admin_port}}:15672"
+    env:
+      RABBITMQ_DEFAULT_USER: "{{ docker_rabbitmq_default_user }}"
+      RABBITMQ_DEFAULT_PASS: "{{ docker_rabbitmq_default_passwd }}"
+    log_driver: journald
+  register: result
+
+- wait_for: port="{{ docker_rabbitmq_admin_port }}" delay=20
+  when: result.changed
+
+- name: List rabbitmq vhosts
+  command: "docker exec {{ docker_rabbitmq_container_name }} rabbitmqctl list_vhosts name"
+  register: vhosts
+  check_mode: no  # run even if in check mode
+  changed_when: false
+
+- name: Add rabbitmq vhosts
+  command: "docker exec rabbitmq rabbitmqctl add_vhost {{ item }}"
+  when: "vhosts.stdout_lines.count(item) == 0"
+  with_items: "{{ docker_rabbitmq_vhosts }}"
+
+- name: List rabbitmq admin permisssions
+  command: docker exec rabbitmq rabbitmqctl list_user_permissions admin
+  register: rabbitmq_permissions
+  check_mode: no  # run even if in check mode
+  changed_when: false
+  
+- name: Set permissions for user admin
+  command: docker exec rabbitmq rabbitmqctl set_permissions -p {{ item }} admin ".*" ".*" ".*"
+  when: "rabbitmq_permissions.stdout_lines.count(item + '\t.*\t.*\t.*') == 0"
+  with_items: "{{ docker_rabbitmq_vhosts }}"
+
+- name: List rabbitmq users
+  command: docker exec rabbitmq rabbitmqctl list_users
+  register: current_rabbitmq_users
+  check_mode: no  # run even if in check mode
+  changed_when: false
+
+- include: users.yml
+  loop: "{{ docker_rabbitmq_users }}"
+
+- name: Stop rabbitmq
+  docker_container:
+    name: rabbitmq
+    state: stopped
+    restart: no
+  when: "docker_rabbitmq_restart_policy != 'always'"

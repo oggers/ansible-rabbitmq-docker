@@ -1,0 +1,5 @@
+---
+# file: roles/rabbitmq/handlers/main.yml
+
+- name: restart rabbitmq
+  command: docker restart {{ docker_rabbitmq_container_name }}

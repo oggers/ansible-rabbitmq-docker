@@ -1,0 +1,5 @@
+---
+# file: roles/rabbitmq-docker/defaults/main.yml
+docker_rabbitmq_container_name: 'rabbitmq'
+docker_rabbitmq_restart_policy: 'always'
+docker_rabbitmq_users: []
