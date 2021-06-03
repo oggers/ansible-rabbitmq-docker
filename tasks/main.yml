@@ -65,7 +65,7 @@
 
 - name: Stop rabbitmq
   docker_container:
-    name: rabbitmq
+    name: "{{ docker_rabbitmq_container_name }}"
     state: stopped
     restart: no
   when: "docker_rabbitmq_restart_policy != 'always'"
